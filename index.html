@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DiploChain — Test API</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@600;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#07090F;--surface:#0E1420;--surface2:#141C2E;--border:#1C2A40;
+  --accent:#00D8FF;--green:#00E87A;--red:#FF4560;--orange:#FF8C42;
+  --purple:#9B59FF;--text:#C8D8EC;--muted:#3D5470;--white:#FFFFFF
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(0,216,255,.03) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(0,216,255,.03) 1px,transparent 1px);
+  background-size:32px 32px}
+.layout{display:flex;min-height:100vh;position:relative;z-index:1}
+
+/* ── Sidebar ── */
+.sidebar{width:270px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh;overflow-y:auto}
+.logo{padding:20px 18px 16px;border-bottom:1px solid var(--border)}
+.logo-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:var(--accent)}
+.logo-sub{font-size:9px;color:var(--muted);letter-spacing:.15em;text-transform:uppercase;margin-top:2px}
+.api-base{padding:10px 18px;background:var(--surface2);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px}
+.api-base input{flex:1;background:transparent;border:none;outline:none;color:var(--green);
+  font-family:'JetBrains Mono',monospace;font-size:11px}
+.api-base-label{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;white-space:nowrap}
+
+/* ── State bar ── */
+.state-bar{padding:10px 18px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:10px}
+.state-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.state-row:last-child{margin-bottom:0}
+.state-label{color:var(--muted);font-size:9px;text-transform:uppercase;letter-spacing:.1em;min-width:38px;flex-shrink:0}
+.state-val{color:var(--orange);font-size:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.state-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dot-ok{background:var(--green)}.dot-no{background:var(--muted)}
+.state-clear{background:transparent;border:none;color:var(--muted);font-size:9px;cursor:pointer;
+  padding:1px 5px;border-radius:2px;margin-left:auto;flex-shrink:0}
+.state-clear:hover{color:var(--red)}
+
+.nav-section{padding:14px 18px 6px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted)}
+.nav-item{display:flex;align-items:center;gap:10px;padding:8px 18px;cursor:pointer;
+  border-left:2px solid transparent;transition:all .15s;user-select:none}
+.nav-item:hover{background:var(--surface2)}
+.nav-item.active{background:var(--surface2);border-left-color:var(--accent);color:var(--white)}
+.method{font-size:9px;font-weight:700;padding:2px 5px;border-radius:2px;min-width:36px;text-align:center}
+.m-post{background:rgba(0,232,122,.15);color:var(--green)}
+.m-get{background:rgba(0,216,255,.15);color:var(--accent)}
+.route{font-size:11px;opacity:.8}
+
+/* ── Main ── */
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{padding:14px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;
+  gap:12px;background:var(--surface)}
+.current-method{font-size:11px;font-weight:700;padding:3px 10px;border-radius:2px}
+.current-route{font-family:'Syne',sans-serif;font-size:15px;font-weight:600;color:var(--white)}
+.current-desc{font-size:10px;color:var(--muted);margin-left:auto}
+.panels{flex:1;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;min-height:0}
+.panel{display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
+.panel:last-child{border-right:none}
+.panel-header{padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);
+  font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);
+  display:flex;align-items:center;justify-content:space-between}
+.btn-small{background:transparent;border:1px solid var(--border);color:var(--muted);
+  font-family:'JetBrains Mono',monospace;font-size:9px;padding:3px 8px;cursor:pointer;
+  border-radius:2px;transition:all .15s}
+.btn-small:hover{border-color:var(--accent);color:var(--accent)}
+.panel-body{flex:1;padding:16px;overflow-y:auto}
+
+/* ── Champs ── */
+.field{margin-bottom:12px}
+.field label{display:flex;align-items:center;gap:6px;font-size:9px;text-transform:uppercase;
+  letter-spacing:.15em;color:var(--muted);margin-bottom:5px}
+.field input,.field textarea,.field select{
+  width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  font-family:'JetBrains Mono',monospace;font-size:12px;padding:8px 10px;outline:none;
+  transition:border-color .15s;border-radius:2px}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent)}
+.field textarea{resize:vertical;min-height:80px}
+.field select{appearance:none;cursor:pointer}
+.field input.auto-filled{border-color:rgba(0,232,122,.45);color:var(--green)}
+
+/* ── Boutons ── */
+.btn-send{width:100%;padding:10px;background:var(--accent);color:var(--bg);border:none;
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;
+  letter-spacing:.05em;text-transform:uppercase;transition:opacity .15s;border-radius:2px;margin-top:4px}
+.btn-send:hover{opacity:.85}
+.btn-mm{padding:7px 14px;background:rgba(255,140,66,.1);border:1px solid var(--orange);
+  color:var(--orange);font-family:'JetBrains Mono',monospace;font-size:11px;cursor:pointer;
+  border-radius:2px;transition:all .15s;margin-top:8px;display:inline-block}
+.btn-mm:hover{background:rgba(255,140,66,.2)}
+
+/* ── Réponse ── */
+.response-area{font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.7;
+  white-space:pre-wrap;word-break:break-all;color:var(--text);min-height:200px}
+.status-badge{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:700;
+  padding:3px 10px;border-radius:2px;margin-bottom:12px}
+.status-ok{background:rgba(0,232,122,.15);color:var(--green);border:1px solid rgba(0,232,122,.3)}
+.status-err{background:rgba(255,69,96,.15);color:var(--red);border:1px solid rgba(255,69,96,.3)}
+.j-key{color:var(--accent)}.j-str{color:var(--green)}.j-num{color:var(--orange)}
+.j-bool{color:var(--purple)}.j-null{color:var(--muted)}
+
+/* ── Boîtes ── */
+.mm-section{background:var(--surface2);border:1px solid var(--border);border-radius:2px;
+  padding:12px;margin-bottom:12px}
+.mm-section h4{font-size:10px;text-transform:uppercase;letter-spacing:.15em;color:var(--orange);margin-bottom:8px}
+.mm-addr{font-size:11px;color:var(--accent);word-break:break-all;line-height:1.5}
+.info-box{background:rgba(0,216,255,.06);border:1px solid rgba(0,216,255,.2);border-radius:2px;
+  padding:10px 12px;font-size:10px;color:var(--accent);margin-bottom:12px;line-height:1.6}
+.warn-box{background:rgba(255,140,66,.08);border:1px solid rgba(255,140,66,.3);border-radius:2px;
+  padding:10px 12px;font-size:10px;color:var(--orange);margin-bottom:12px;line-height:1.6}
+.pill{display:inline-block;font-size:9px;padding:2px 7px;border-radius:10px;font-weight:700;letter-spacing:.04em}
+.pill-auto{background:rgba(0,232,122,.12);color:var(--green);border:1px solid rgba(0,232,122,.25)}
+.pill-pub{background:rgba(0,216,255,.1);color:var(--accent);border:1px solid rgba(0,216,255,.2)}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:24px;right:24px;padding:10px 16px;border-radius:2px;font-size:12px;
+  z-index:9999;opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;max-width:340px}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.ok{background:var(--green);color:#000}
+.toast.err{background:var(--red);color:#fff}
+.toast.info{background:var(--accent);color:#000}
+
+/* ── Modal ── */
+.mm-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+  z-index:10000;align-items:center;justify-content:center}
+.mm-modal{background:#0E1420;border:1px solid #FF8C42;border-radius:4px;padding:32px;
+  max-width:400px;width:90%;text-align:center}
+.mm-modal-icon{font-size:48px;margin-bottom:16px}
+.mm-modal-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;color:#FF8C42;margin-bottom:8px}
+.mm-modal-text{font-size:12px;color:#3D5470;line-height:1.7;margin-bottom:24px}
+.mm-modal-text strong{color:#C8D8EC}
+.mm-modal-btns{display:flex;gap:10px;justify-content:center}
+.btn-install{padding:10px 20px;background:#FF8C42;color:#07090F;border:none;
+  font-family:'Syne',sans-serif;font-size:13px;font-weight:700;cursor:pointer;border-radius:2px}
+.btn-install:hover{opacity:.85}
+.btn-cancel{padding:10px 20px;background:transparent;color:#3D5470;border:1px solid #1C2A40;
+  font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;border-radius:2px}
+.btn-cancel:hover{border-color:#3D5470;color:#C8D8EC}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="layout">
+
+<!-- ══════════════════ SIDEBAR ══════════════════ -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-title">DiploChain</div>
+    <div class="logo-sub">API Test Client</div>
+  </div>
+
+  <div class="api-base">
+    <span class="api-base-label">Base</span>
+    <input id="apiBase" type="text" value="http://localhost:8000/api">
+  </div>
+
+  <!-- State bar : toutes les valeurs viennent des réponses API -->
+  <div class="state-bar">
+    <div class="state-row">
+      <span class="state-dot dot-no" id="dotJWT"></span>
+      <span class="state-label">JWT</span>
+      <span class="state-val" id="stJWT">—</span>
+      <button class="state-clear" onclick="clearJWT()" title="Effacer JWT">✕</button>
+    </div>
+    <div class="state-row">
+      <span class="state-dot dot-no" id="dotMM"></span>
+      <span class="state-label">Wallet</span>
+      <span class="state-val" id="stMM">—</span>
+      <button class="state-clear" onclick="clearMM()" title="Effacer adresse MM">✕</button>
+    </div>
+    <div class="state-row">
+      <span class="state-dot dot-no" id="dotDip"></span>
+      <span class="state-label">Dip.ID</span>
+      <span class="state-val" id="stDip">—</span>
+      <button class="state-clear" onclick="clearDip()" title="Effacer Diploma ID">✕</button>
+    </div>
+    <div class="state-row">
+      <span class="state-dot dot-no" id="dotHash"></span>
+      <span class="state-label">Hash</span>
+      <span class="state-val" id="stHash">—</span>
+      <button class="state-clear" onclick="clearHash()" title="Effacer hash">✕</button>
+    </div>
+    <div class="state-row">
+      <span class="state-dot dot-no" id="dotUID"></span>
+      <span class="state-label">Univ.ID</span>
+      <span class="state-val" id="stUID">—</span>
+      <button class="state-clear" onclick="clearUID()" title="Effacer University ID">✕</button>
+    </div>
+  </div>
+
+  <div class="nav-section">Auth</div>
+  <div class="nav-item" data-view="register"><span class="method m-post">POST</span><span class="route">/auth/register/</span></div>
+  <div class="nav-item" data-view="login"><span class="method m-post">POST</span><span class="route">/auth/login/</span></div>
+  <div class="nav-item" data-view="profile"><span class="method m-get">GET</span><span class="route">/auth/profile/</span></div>
+  <div class="nav-item" data-view="keys"><span class="method m-get">GET</span><span class="route">/auth/keys/</span></div>
+
+  <div class="nav-section">Wallet MetaMask</div>
+  <div class="nav-item" data-view="wallet-challenge"><span class="method m-get">GET</span><span class="route">/auth/wallet-challenge/</span></div>
+  <div class="nav-item" data-view="connect-wallet"><span class="method m-post">POST</span><span class="route">/auth/connect-wallet/</span></div>
+
+  <div class="nav-section">Diplômes</div>
+  <div class="nav-item" data-view="issue"><span class="method m-post">POST</span><span class="route">/diplomas/issue/</span></div>
+  <div class="nav-item" data-view="confirm-eth"><span class="method m-post">POST</span><span class="route">/diplomas/{id}/confirm-eth-sig/</span></div>
+  <div class="nav-item" data-view="anchor"><span class="method m-post">POST</span><span class="route">/diplomas/{id}/anchor/</span></div>
+  <div class="nav-item" data-view="list"><span class="method m-get">GET</span><span class="route">/diplomas/</span></div>
+  <div class="nav-item" data-view="detail"><span class="method m-get">GET</span><span class="route">/diplomas/{id}/</span></div>
+  <div class="nav-item" data-view="revoke"><span class="method m-post">POST</span><span class="route">/diplomas/{id}/revoke/</span></div>
+
+  <div class="nav-section">Vérification</div>
+  <div class="nav-item" data-view="verify-hash"><span class="method m-post">POST</span><span class="route">/diplomas/verify/hash/</span></div>
+  <div class="nav-item" data-view="verify-file"><span class="method m-post">POST</span><span class="route">/diplomas/verify/file/</span></div>
+
+  <div class="nav-section">Universités</div>
+  <div class="nav-item" data-view="univ-list"><span class="method m-get">GET</span><span class="route">/universities/</span></div>
+  <div class="nav-item" data-view="univ-detail"><span class="method m-get">GET</span><span class="route">/universities/{id}/</span></div>
+</aside>
+
+<!-- ══════════════════ MAIN ══════════════════ -->
+<div class="main">
+  <div class="topbar">
+    <span class="current-method method m-post" id="topMethod">POST</span>
+    <span class="current-route" id="topRoute">/api/auth/login/</span>
+    <span class="current-desc" id="topDesc">Connexion — JWT stocké automatiquement</span>
+  </div>
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header"><span>Requête</span></div>
+      <div class="panel-body" id="requestPanel"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <span>Réponse</span>
+        <button class="btn-small" onclick="clearResp()">Effacer</button>
+      </div>
+      <div class="panel-body">
+        <div id="respStatus"></div>
+        <div class="response-area" id="respBody">En attente d'une requête...</div>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// ÉTAT — tout vient des réponses API ou de MetaMask
+// Aucune valeur pré-remplie en dur dans ce fichier
+// ════════════════════════════════════════════════════════
+const ST = {
+  token:   localStorage.getItem('dc_tok')  || '',
+  refresh: localStorage.getItem('dc_ref')  || '',
+  dipId:   localStorage.getItem('dc_did')  || '',
+  hash:    localStorage.getItem('dc_hash') || '',
+  mm:      localStorage.getItem('dc_mm')   || '',
+  univId:  localStorage.getItem('dc_uid')  || ''
+};
+
+// ── Affichage state-bar ───────────────────────────────────
+function refreshBar() {
+  const upd = (dotId, valId, val) => {
+    const d = document.getElementById(dotId);
+    const v = document.getElementById(valId);
+    if (!d || !v) return;
+    d.className = 'state-dot ' + (val ? 'dot-ok' : 'dot-no');
+    v.textContent = val ? val.substring(0, 22) + (val.length > 22 ? '…' : '') : '—';
+  };
+  upd('dotJWT',  'stJWT',  ST.token);
+  upd('dotMM',   'stMM',   ST.mm);
+  upd('dotDip',  'stDip',  ST.dipId);
+  upd('dotHash', 'stHash', ST.hash);
+  upd('dotUID',  'stUID',  ST.univId);
+}
+
+// ── Sauvegarde ────────────────────────────────────────────
+function saveToken(access, refresh) {
+  ST.token   = access   || '';
+  ST.refresh = refresh  || ST.refresh;
+  localStorage.setItem('dc_tok', ST.token);
+  if (refresh) localStorage.setItem('dc_ref', refresh);
+  refreshBar();
+}
+function saveDip(id, hash) {
+  if (id)   { ST.dipId = id;   localStorage.setItem('dc_did',  id); }
+  if (hash) { ST.hash  = hash; localStorage.setItem('dc_hash', hash); }
+  refreshBar();
+}
+function saveMM(addr) {
+  ST.mm = addr || '';
+  localStorage.setItem('dc_mm', ST.mm);
+  refreshBar();
+  // Propagation immédiate dans le champ visible
+  const el = document.getElementById('faddr');
+  if (el) { el.value = ST.mm; el.classList.add('auto-filled'); }
+  const el2 = document.getElementById('fsgn');
+  if (el2 && !el2.value) { el2.value = ST.mm; el2.classList.add('auto-filled'); }
+}
+function saveUID(id) {
+  ST.univId = id || '';
+  localStorage.setItem('dc_uid', ST.univId);
+  refreshBar();
+}
+
+// ── Effacement ────────────────────────────────────────────
+function clearJWT()  { saveToken('', ''); toast('JWT effacé', 'info'); }
+function clearMM()   { ST.mm = ''; localStorage.removeItem('dc_mm'); refreshBar(); toast('Wallet effacé', 'info'); }
+function clearDip()  { ST.dipId = ''; localStorage.removeItem('dc_did');  refreshBar(); toast('Diploma ID effacé', 'info'); }
+function clearHash() { ST.hash  = ''; localStorage.removeItem('dc_hash'); refreshBar(); toast('Hash effacé', 'info'); }
+function clearUID()  { ST.univId = ''; localStorage.removeItem('dc_uid'); refreshBar(); toast('University ID effacé', 'info'); }
+
+// ── Extraction automatique depuis chaque réponse API ─────
+function extractFromResponse(status, data) {
+  if (status < 200 || status >= 300) return;
+
+  // JWT — retourné par /auth/login/
+  if (data.access)           saveToken(data.access, data.refresh);
+
+  // Diploma ID + hash — retournés par /diplomas/issue/
+  if (data.id)               saveDip(data.id, null);
+  if (data.file_hash)        saveDip(null, data.file_hash);
+
+  // University ID — retourné par /auth/register/
+  if (data.university_id)    saveUID(data.university_id);
+
+  // Adresse MetaMask — retournée par /auth/register/ et /auth/connect-wallet/
+  if (data.blockchain_address) saveMM(data.blockchain_address);
+}
+
+refreshBar();
+
+// ════════════════════════════════════════════════════════
+// UTILITAIRES
+// ════════════════════════════════════════════════════════
+function g(id) {
+  const el = document.getElementById(id);
+  return el ? el.value.trim() : '';
+}
+function base() {
+  return document.getElementById('apiBase').value.replace(/\/$/, '');
+}
+
+// Après render : injecter les valeurs connues dans les champs vides
+function populateFields() {
+  const fill = (id, val) => {
+    if (!val) return;
+    const el = document.getElementById(id);
+    if (el && !el.value) { el.value = val; el.classList.add('auto-filled'); }
+  };
+  fill('faddr',       ST.mm);
+  fill('fsgn',        ST.mm);
+  fill('fdid_manual', ST.dipId);
+  fill('fhash_manual',ST.hash);
+  fill('fhsh_manual', ST.hash);
+  fill('fuid',        ST.univId);
+}
+
+// ── Toast ─────────────────────────────────────────────────
+let _tt;
+function toast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = 'toast show '+type;
+  clearTimeout(_tt); _tt = setTimeout(() => t.className='toast', 3200);
+}
+
+// ── Coloration JSON ───────────────────────────────────────
+function hl(obj) {
+  return JSON.stringify(obj, null, 2)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      m => {
+        if (/^"/.test(m)) return /:$/.test(m)
+          ? `<span class="j-key">${m}</span>`
+          : `<span class="j-str">${m}</span>`;
+        if (/true|false/.test(m)) return `<span class="j-bool">${m}</span>`;
+        if (/null/.test(m))       return `<span class="j-null">${m}</span>`;
+        return `<span class="j-num">${m}</span>`;
+      }
+    );
+}
+
+// ── Affichage réponse ─────────────────────────────────────
+function showResp(status, data) {
+  const ok = status >= 200 && status < 300;
+  document.getElementById('respStatus').innerHTML =
+    `<div class="status-badge ${ok?'status-ok':'status-err'}">HTTP ${status}</div>`;
+  document.getElementById('respBody').innerHTML = hl(data);
+  extractFromResponse(status, data);
+}
+function clearResp() {
+  document.getElementById('respStatus').innerHTML = '';
+  document.getElementById('respBody').textContent = "En attente d'une requête...";
+}
+
+// ── Appel HTTP ────────────────────────────────────────────
+async function call(method, path, body=null, isForm=false) {
+  const url     = base() + path;
+  const headers = {};
+  if (ST.token)        headers['Authorization'] = 'Bearer ' + ST.token;
+  if (!isForm && body) headers['Content-Type']  = 'application/json';
+  const opts = { method, headers };
+  if (body) opts.body = isForm ? body : JSON.stringify(body);
+  try {
+    const res  = await fetch(url, opts);
+    const data = await res.json().catch(() => ({ error: 'Réponse non-JSON' }));
+    showResp(res.status, data);
+    return { status: res.status, data };
+  } catch(e) {
+    const err = { error: e.message, hint: 'Vérifiez que Django tourne sur ' + base() };
+    showResp(0, err);
+    toast('Connexion impossible', 'err');
+    return { status: 0, data: err };
+  }
+}
+
+// ── Guards ────────────────────────────────────────────────
+function checkJWT() {
+  if (!ST.token) { toast('JWT manquant — connectez-vous via /auth/login/', 'err'); return false; }
+  return true;
+}
+function checkMM() {
+  if (!window.ethereum) { showMMModal(); return false; }
+  return true;
+}
+
+// ════════════════════════════════════════════════════════
+// METAMASK
+// ════════════════════════════════════════════════════════
+function showMMModal()  { document.getElementById('mmModal').style.display='flex'; }
+function closeMMModal() { document.getElementById('mmModal').style.display='none'; }
+function goInstallMM()  { window.open('https://metamask.io/download/','_blank'); closeMMModal(); }
+
+async function connMM() {
+  if (!checkMM()) return;
+  try {
+    const acc = await window.ethereum.request({ method:'eth_requestAccounts' });
+    saveMM(acc[0]);
+    toast('Wallet connecté : ' + acc[0].substring(0,14)+'...', 'ok');
+  } catch(e) { toast('MetaMask refusé : '+e.message, 'err'); }
+}
+
+// Challenge + signature automatique (pour connect-wallet)
+async function signChallenge() {
+  if (!checkJWT()) return;
+  const r = await call('GET', '/auth/wallet-challenge/');
+  if (!r.data?.challenge) { toast('Challenge non obtenu', 'err'); return; }
+  const ch = r.data.challenge;
+  if (!checkMM()) return;
+  try {
+    const acc  = await window.ethereum.request({ method:'eth_requestAccounts' });
+    const addr = acc[0];
+    const sig  = await window.ethereum.request({ method:'personal_sign', params:[ch, addr] });
+    saveMM(addr);
+    const fs=document.getElementById('fsig'), fc=document.getElementById('fch');
+    if (fs) { fs.value=sig; fs.classList.add('auto-filled'); }
+    if (fc) { fc.value=ch;  fc.classList.add('auto-filled'); }
+    toast('Challenge signé — champs auto-remplis', 'ok');
+  } catch(e) { toast('MetaMask refusé : '+e.message, 'err'); }
+}
+
+// Signature du hash SHA-256 (pour confirm-eth-sig)
+async function signHashMM() {
+  let hash = g('fhash_manual');
+  if (!hash) { toast('Hash SHA-256 requis', 'err'); return; }
+  if (hash.startsWith('0x')) hash = hash.substring(2);
+  if (!checkMM()) return;
+  try {
+    const acc  = await window.ethereum.request({ method:'eth_requestAccounts' });
+    const addr = acc[0];
+    const sig  = await window.ethereum.request({ method:'personal_sign', params:[hash, addr] });
+    saveMM(addr);
+    const fe=document.getElementById('feth'), fs=document.getElementById('fsgn');
+    if (fe) { fe.value=sig;  fe.classList.add('auto-filled'); }
+    if (fs) { fs.value=addr; fs.classList.add('auto-filled'); }
+    toast('Hash signé — signature auto-remplie', 'ok');
+  } catch(e) { toast('MetaMask refusé : '+e.message, 'err'); }
+}
+
+// ════════════════════════════════════════════════════════
+// ACTIONS
+// ════════════════════════════════════════════════════════
+async function doReg() {
+  if (!g('faddr')) { toast('Connectez MetaMask ou saisissez l\'adresse', 'err'); return; }
+  await call('POST', '/auth/register/', {
+    email: g('fe'), password: g('fp'), password_confirm: g('fp2'),
+    name: g('fn'), acronym: g('fa'), country: g('fc'), city: g('fv'),
+    blockchain_address: g('faddr')
+  });
+}
+
+async function doLogin() {
+  const r = await call('POST', '/auth/login/', { email:g('fe'), password:g('fp') });
+  if (r.data?.access) toast('Connecté — JWT stocké automatiquement', 'ok');
+}
+
+async function doCW() {
+  if (!checkJWT()) return;
+  await call('POST', '/auth/connect-wallet/', {
+    blockchain_address: g('faddr'),
+    signed_message:     g('fsig'),
+    challenge_message:  g('fch')
+  });
+}
+
+async function doIssue() {
+  if (!checkJWT()) return;
+  const yr = parseInt(g('fyr'));
+  if (!g('ffn')||!g('fln')||!g('fdeg')||!g('flvl')||!g('ffld')||isNaN(yr)) {
+    toast('Remplissez tous les champs obligatoires', 'err'); return;
+  }
+  await call('POST', '/diplomas/issue/', {
+    student_first_name: g('ffn'), student_last_name: g('fln'),
+    degree_title: g('fdeg'), degree_level: g('flvl'),
+    field_of_study: g('ffld'), mention: g('fmen'),
+    graduation_year: yr
+  });
+}
+
+async function doConfEth() {
+  if (!checkJWT()) return;
+  const id = g('fdid_manual');
+  if (!id) { toast('Diploma ID requis', 'err'); return; }
+  await call('POST', '/diplomas/'+id+'/confirm-eth-sig/', {
+    eth_signature: g('feth'), signer_address: g('fsgn')
+  });
+}
+
+async function doAnchor() {
+  if (!checkJWT()) return;
+  const id = g('fdid_manual');
+  if (!id) { toast('Diploma ID requis', 'err'); return; }
+  await call('POST', '/diplomas/'+id+'/anchor/');
+}
+
+async function doRevoke() {
+  if (!checkJWT()) return;
+  const id = g('fdid_manual'), reason = g('frev');
+  if (!id)     { toast('Diploma ID requis', 'err'); return; }
+  if (!reason) { toast('Motif requis', 'err'); return; }
+  await call('POST', '/diplomas/'+id+'/revoke/', { reason });
+}
+
+async function doVFile() {
+  const fi = document.getElementById('fpdf');
+  if (!fi?.files[0]) { toast('Sélectionnez un PDF', 'err'); return; }
+  const fd = new FormData();
+  fd.append('pdf_file', fi.files[0]);
+  const did = g('fdid_manual');
+  if (did) fd.append('diploma_id', did);
+  await call('POST', '/diplomas/verify/file/', fd, true);
+}
+
+// ════════════════════════════════════════════════════════
+// VUES — aucune valeur pré-remplie en dur
+// Les placeholders indiquent uniquement le format attendu
+// Les données connues sont injectées par populateFields()
+// ════════════════════════════════════════════════════════
+const VIEWS = {
+
+  register: {
+    method:'POST', route:'/auth/register/',
+    desc:'Inscription université + génération clés RSA',
+    render:() => `
+      <div class="mm-section">
+        <h4>🦊 Wallet MetaMask</h4>
+        <div class="mm-addr">${ST.mm || '— non connecté —'}</div>
+        <button class="btn-mm" onclick="connMM()">Connecter MetaMask</button>
+      </div>
+      <div class="field"><label>Email</label>
+        <input id="fe" type="email" placeholder="admin@universite.bf"></div>
+      <div class="field"><label>Mot de passe</label>
+        <input id="fp" type="password" placeholder="Minimum 8 caractères"></div>
+      <div class="field"><label>Confirmer mot de passe</label>
+        <input id="fp2" type="password" placeholder="Idem ci-dessus"></div>
+      <div class="field"><label>Nom de l'université</label>
+        <input id="fn" placeholder="Université de Ouagadougou"></div>
+      <div class="field"><label>Sigle</label>
+        <input id="fa" placeholder="UO"></div>
+      <div class="field"><label>Pays</label>
+        <input id="fc" placeholder="Burkina Faso"></div>
+      <div class="field"><label>Ville</label>
+        <input id="fv" placeholder="Ouagadougou"></div>
+      <div class="field"><label>Adresse MetaMask <span class="pill pill-auto">auto si connecté</span></label>
+        <input id="faddr" placeholder="0x..."></div>
+      <button class="btn-send" onclick="doReg()">POST /auth/register/</button>`
+  },
+
+  login: {
+    method:'POST', route:'/auth/login/',
+    desc:'Connexion — JWT stocké automatiquement dans la state-bar',
+    render:() => `
+      <div class="info-box">✅ Après connexion réussie, le JWT access et refresh sont capturés automatiquement.</div>
+      <div class="field"><label>Email</label>
+        <input id="fe" type="email" placeholder="admin@universite.bf"></div>
+      <div class="field"><label>Mot de passe</label>
+        <input id="fp" type="password" placeholder="••••••••"></div>
+      <button class="btn-send" onclick="doLogin()">POST /auth/login/</button>`
+  },
+
+  profile: {
+    method:'GET', route:'/auth/profile/',
+    desc:'Profil université connectée (JWT requis)',
+    render:() => `
+      <div class="info-box">🔐 JWT récupéré depuis la state-bar (connexion via /auth/login/ d'abord).</div>
+      <button class="btn-send" onclick="if(checkJWT()) call('GET','/auth/profile/')">GET /auth/profile/</button>`
+  },
+
+  keys: {
+    method:'GET', route:'/auth/keys/',
+    desc:'Export clés RSA (JWT requis)',
+    render:() => `
+      <div class="warn-box">⚠️ Retourne la clé privée RSA. Endpoint sensible — protéger par 2FA en production.</div>
+      <button class="btn-send" onclick="if(checkJWT()) call('GET','/auth/keys/')">GET /auth/keys/</button>`
+  },
+
+  'wallet-challenge': {
+    method:'GET', route:'/auth/wallet-challenge/',
+    desc:'Générer un challenge MetaMask (JWT requis)',
+    render:() => `
+      <div class="info-box">🔐 JWT requis. La vue <strong>connect-wallet</strong> appelle cet endpoint automatiquement via le bouton "Obtenir challenge + signer".</div>
+      <button class="btn-send" onclick="if(checkJWT()) call('GET','/auth/wallet-challenge/')">GET /auth/wallet-challenge/</button>`
+  },
+
+  'connect-wallet': {
+    method:'POST', route:'/auth/connect-wallet/',
+    desc:'Lier une adresse MetaMask au compte (JWT requis)',
+    render:() => `
+      <div class="mm-section">
+        <h4>🦊 Étape 1 — Signer le challenge</h4>
+        <button class="btn-mm" onclick="signChallenge()">Obtenir challenge + signer avec MetaMask</button>
+      </div>
+      <div class="field"><label>Adresse MetaMask <span class="pill pill-auto">auto après signature</span></label>
+        <input id="faddr" placeholder="0x..."></div>
+      <div class="field"><label>Signature MetaMask <span class="pill pill-auto">auto après signature</span></label>
+        <input id="fsig" placeholder="0x..."></div>
+      <div class="field"><label>Message signé (challenge) <span class="pill pill-auto">auto après signature</span></label>
+        <input id="fch" placeholder="DiploChain:connect-wallet:..."></div>
+      <button class="btn-send" onclick="doCW()">Étape 2 — POST /auth/connect-wallet/</button>`
+  },
+
+  issue: {
+    method:'POST', route:'/diplomas/issue/',
+    desc:'Émettre un diplôme — ID et hash capturés automatiquement (JWT requis)',
+    render:() => `
+      <div class="info-box">📋 Après succès, l'<strong>id</strong> et le <strong>file_hash</strong> du diplôme sont capturés automatiquement dans la state-bar.</div>
+      <div class="field"><label>Prénom de l'étudiant</label>
+        <input id="ffn" placeholder="Idrissa"></div>
+      <div class="field"><label>Nom de l'étudiant</label>
+        <input id="fln" placeholder="Koné"></div>
+      <div class="field"><label>Intitulé du diplôme</label>
+        <input id="fdeg" placeholder="Licence en Informatique"></div>
+      <div class="field"><label>Niveau</label>
+        <select id="flvl">
+          <option value="">— Choisir —</option>
+          <option value="licence">Licence (Bac+3)</option>
+          <option value="master">Master (Bac+5)</option>
+          <option value="doctorat">Doctorat (Bac+8)</option>
+          <option value="bts">BTS</option>
+          <option value="dut">DUT</option>
+          <option value="ingenieur">Diplôme d'Ingénieur</option>
+          <option value="autre">Autre</option>
+        </select>
+      </div>
+      <div class="field"><label>Filière / Spécialité</label>
+        <input id="ffld" placeholder="Génie Logiciel"></div>
+      <div class="field"><label>Mention</label>
+        <select id="fmen">
+          <option value="">— Choisir —</option>
+          <option value="passable">Passable</option>
+          <option value="assez_bien">Assez Bien</option>
+          <option value="bien">Bien</option>
+          <option value="tres_bien">Très Bien</option>
+          <option value="excellent">Excellent</option>
+        </select>
+      </div>
+      <div class="field"><label>Année d'obtention</label>
+        <input id="fyr" type="number" placeholder="2024" min="1950" max="2100"></div>
+      <button class="btn-send" onclick="doIssue()">POST /diplomas/issue/</button>`
+  },
+
+  'confirm-eth': {
+    method:'POST', route:'/diplomas/{id}/confirm-eth-sig/',
+    desc:'Confirmer la signature MetaMask du hash (JWT requis)',
+    render:() => `
+      <div class="info-box">ℹ️ L'ID et le hash sont récupérés automatiquement depuis <strong>/diplomas/issue/</strong>.</div>
+      <div class="field"><label>Hash SHA-256 <span class="pill pill-auto">auto depuis issue</span></label>
+        <input id="fhash_manual" placeholder="64 caractères hex..."></div>
+      <div class="field"><label>Diploma ID <span class="pill pill-auto">auto depuis issue</span></label>
+        <input id="fdid_manual" placeholder="UUID..."></div>
+      <div class="mm-section">
+        <h4>🦊 Signer le hash avec MetaMask</h4>
+        <button class="btn-mm" onclick="signHashMM()">Signer avec MetaMask</button>
+      </div>
+      <div class="field"><label>Signature ETH (eth_signature) <span class="pill pill-auto">auto après signature</span></label>
+        <input id="feth" placeholder="0x..."></div>
+      <div class="field"><label>Adresse signataire (signer_address) <span class="pill pill-auto">auto après signature</span></label>
+        <input id="fsgn" placeholder="0x..."></div>
+      <button class="btn-send" onclick="doConfEth()">POST /diplomas/{id}/confirm-eth-sig/</button>`
+  },
+
+  anchor: {
+    method:'POST', route:'/diplomas/{id}/anchor/',
+    desc:'Ancrer sur Polygon Amoy (JWT requis)',
+    render:() => `
+      <div class="warn-box">⛽ Django utilise <strong>BLOCKCHAIN_PRIVATE_KEY</strong> dans .env pour payer le gas. Assurez-vous que ce wallet est alimenté en MATIC testnet.</div>
+      <div class="field"><label>Diploma ID <span class="pill pill-auto">auto depuis issue</span></label>
+        <input id="fdid_manual" placeholder="UUID..."></div>
+      <button class="btn-send" onclick="doAnchor()">POST /diplomas/{id}/anchor/</button>`
+  },
+
+  list: {
+    method:'GET', route:'/diplomas/',
+    desc:'Mes diplômes — université connectée (JWT requis)',
+    render:() => `
+      <div class="info-box">📋 Retourne tous les diplômes émis par l'université authentifiée.</div>
+      <button class="btn-send" onclick="if(checkJWT()) call('GET','/diplomas/')">GET /diplomas/</button>`
+  },
+
+  detail: {
+    method:'GET', route:'/diplomas/{id}/',
+    desc:'Détail d\'un diplôme (public)',
+    render:() => `
+      <div class="field"><label>Diploma ID <span class="pill pill-auto">auto depuis issue</span></label>
+        <input id="fdid_manual" placeholder="UUID..."></div>
+      <button class="btn-send" onclick="(()=>{ const id=g('fdid_manual'); if(!id){toast('Diploma ID requis','err');return;} call('GET','/diplomas/'+id+'/'); })()">GET /diplomas/{id}/</button>`
+  },
+
+  revoke: {
+    method:'POST', route:'/diplomas/{id}/revoke/',
+    desc:'Révoquer un diplôme (JWT requis)',
+    render:() => `
+      <div class="warn-box">⚠️ Action irréversible — le diplôme sera marqué RÉVOQUÉ.</div>
+      <div class="field"><label>Diploma ID <span class="pill pill-auto">auto depuis issue</span></label>
+        <input id="fdid_manual" placeholder="UUID..."></div>
+      <div class="field"><label>Motif de révocation</label>
+        <input id="frev" placeholder="Fraude détectée, erreur administrative..."></div>
+      <button class="btn-send" onclick="doRevoke()">POST /diplomas/{id}/revoke/</button>`
+  },
+
+  'verify-hash': {
+    method:'POST', route:'/diplomas/verify/hash/',
+    desc:'Vérifier un diplôme par hash SHA-256 (public)',
+    render:() => `
+      <div class="field"><label>Hash SHA-256 (64 hex) <span class="pill pill-auto">auto depuis issue</span></label>
+        <input id="fhsh_manual" placeholder="64 caractères hexadécimaux..."></div>
+      <button class="btn-send" onclick="(()=>{ const h=g('fhsh_manual'); if(!h){toast('Hash requis','err');return;} call('POST','/diplomas/verify/hash/',{file_hash:h}); })()">POST /diplomas/verify/hash/</button>`
+  },
+
+  'verify-file': {
+    method:'POST', route:'/diplomas/verify/file/',
+    desc:'Vérifier un diplôme par upload PDF (public)',
+    render:() => `
+      <div class="field"><label>Fichier PDF du diplôme</label>
+        <input id="fpdf" type="file" accept=".pdf"></div>
+      <div class="field"><label>Diploma ID (optionnel) <span class="pill pill-auto">auto depuis issue</span></label>
+        <input id="fdid_manual" placeholder="UUID..."></div>
+      <button class="btn-send" onclick="doVFile()">POST /diplomas/verify/file/</button>`
+  },
+
+  'univ-list': {
+    method:'GET', route:'/universities/',
+    desc:'Universités vérifiées (public — pas de JWT)',
+    render:() => `
+      <div class="info-box">🌍 Endpoint public. Retourne uniquement les universités marquées <strong>is_verified=true</strong>.</div>
+      <button class="btn-send" onclick="call('GET','/universities/')">GET /universities/</button>`
+  },
+
+  'univ-detail': {
+    method:'GET', route:'/universities/{id}/',
+    desc:'Profil public d\'une université',
+    render:() => `
+      <div class="field"><label>University ID <span class="pill pill-auto">auto depuis register</span></label>
+        <input id="fuid" placeholder="UUID..."></div>
+      <button class="btn-send" onclick="(()=>{ const id=g('fuid'); if(!id){toast('University ID requis','err');return;} call('GET','/universities/'+id+'/'); })()">GET /universities/{id}/</button>`
+  }
+};
+
+// ════════════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════════════
+function loadView(key) {
+  const v = VIEWS[key];
+  if (!v) return;
+  document.querySelectorAll('.nav-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.view === key)
+  );
+  const mEl = document.getElementById('topMethod');
+  mEl.textContent = v.method;
+  mEl.className   = 'current-method method ' + (v.method==='GET' ? 'm-get' : 'm-post');
+  document.getElementById('topRoute').textContent   = '/api' + v.route;
+  document.getElementById('topDesc').textContent    = v.desc;
+  document.getElementById('requestPanel').innerHTML = v.render();
+  clearResp();
+  populateFields();  // injection auto des valeurs connues
+}
+
+document.querySelectorAll('.nav-item').forEach(el =>
+  el.addEventListener('click', () => loadView(el.dataset.view))
+);
+
+loadView('login');
+</script>
+
+<!-- Modal MetaMask -->
+<div class="mm-modal-overlay" id="mmModal" onclick="if(event.target===this)closeMMModal()">
+  <div class="mm-modal">
+    <div class="mm-modal-icon">🦊</div>
+    <div class="mm-modal-title">MetaMask requis</div>
+    <div class="mm-modal-text">
+      MetaMask n'est pas détecté dans votre navigateur.<br><br>
+      <strong>MetaMask</strong> est un portefeuille Ethereum qui permet de signer vos diplômes de façon sécurisée.
+      Votre clé privée ne quitte jamais votre navigateur.
+    </div>
+    <div class="mm-modal-btns">
+      <button class="btn-install" onclick="goInstallMM()">Installer MetaMask</button>
+      <button class="btn-cancel" onclick="closeMMModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

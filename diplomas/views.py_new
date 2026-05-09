@@ -1,0 +1,106 @@
+class ConfirmEthSigView(APIView):
+    """
+    POST /api/diplomas/<id>/confirm-eth-sig/
+    """
+    permission_classes = [permissions.AllowAny]  # TEST TEMPORAIRE
+
+    def dispatch(self, request, *args, **kwargs):
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"!!! DISPATCH HIT !!! {request.method} {request.path}")
+        return super().dispatch(request, *args, **kwargs)
+
+    def post(self, request, pk):
+        university = request.user
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"--- CONFIRM SIG START ---")
+        logger.info(f"Diploma ID (pk): {pk}")
+        
+        # Log basic info if user is authenticated, else guest
+        user_info = f"{university.email}" if university and university.is_authenticated else "GUEST"
+        logger.info(f"User: {user_info}")
+        logger.info(f"Request Data: {request.data}")
+
+        # Récupérer le diplôme
+        try:
+            # Note: Si on est en AllowAny, university peut être AnonymousUser
+            # On cherche le diplôme par PK d'abord pour le debug
+            diploma = Diploma.objects.get(id=pk)
+            logger.info(f"Found Diploma: {diploma.id} | Hash: {diploma.file_hash} | Owner: {diploma.university.email}")
+            
+            # Vérification manuelle de propriété pour le debug
+            if university and university.is_authenticated:
+                if diploma.university != university:
+                    logger.warning(f"Ownership mismatch: Diploma owner {diploma.university.id} != User {university.id}")
+            
+            if diploma.status != Diploma.STATUS_DRAFT:
+                 logger.warning(f"Status mismatch: Current status is {diploma.status}")
+
+        except Diploma.DoesNotExist:
+            logger.warning(f"Diploma not found for PK={pk}")
+            return Response(
+                {"error": "Diplôme introuvable."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Valider le body
+        serializer = ConfirmEthSigSerializer(data=request.data)
+        if not serializer.is_valid():
+            logger.error(f"Serializer Errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        eth_signature   = serializer.validated_data["eth_signature"]
+        signer_address  = serializer.validated_data["signer_address"]
+
+        # Si on est en test (AllowAny), on utilise l'université du diplôme
+        target_university = diploma.university
+
+        # Vérification 1 : l'adresse qui signe = l'adresse du wallet enregistré
+        if signer_address.lower() != target_university.blockchain_address.lower():
+            logger.warning(f"Address mismatch: Signer {signer_address} != Wallet {target_university.blockchain_address}")
+            return Response(
+                {
+                    "error": (
+                        f"L'adresse signataire ({signer_address}) "
+                        f"ne correspond pas au wallet enregistré "
+                        f"({target_university.blockchain_address})."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Vérification 2 : la signature ETH est cryptographiquement valide
+        valid, reason = verify_eth_signature_from_metamask(
+            message=diploma.file_hash,
+            eth_signature_hex=eth_signature,
+            expected_address=target_university.blockchain_address,
+        )
+
+        if not valid:
+            logger.error(f"Signature Validation Failed: {reason}")
+            return Response(
+                {
+                    "error": f"Signature MetaMask invalide : {reason}",
+                    "detail": (
+                        "Assurez-vous que MetaMask a signé exactement le hash "
+                        f"'{diploma.file_hash}' avec personal_sign."
+                    ),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Tout est valide — finaliser le diplôme
+        diploma.eth_signature    = eth_signature
+        diploma.eth_message_hash = diploma.file_hash
+        diploma.status           = Diploma.STATUS_SIGNED
+        diploma.save()
+
+        return Response(
+            {
+                "message":      "Diplôme entièrement signé (RSA + MetaMask). Émission complète.",
+                "diploma_id":   str(diploma.id),
+                "status":       diploma.status,
+                "file_hash":    diploma.file_hash,
+            }
+        )
