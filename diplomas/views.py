@@ -35,6 +35,10 @@ from universities.crypto_service import (
     verify_eth_signature_from_metamask,
 )
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 
 # ══════════════════════════════════════════════════════════════
 # ÉMISSION — ÉTAPE 1/2

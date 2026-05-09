@@ -187,33 +187,34 @@ def verify_eth_signature_from_metamask(
         if not sig.startswith("0x"):
             sig = "0x" + sig
 
-        # Reconstruction du message (hash)
-        # On essaie d'abord sans le 0x (le hash pur)
-        clean_msg = message[2:] if message.startswith("0x") else message
-        signable_message = encode_defunct(text=clean_msg)
+        # Le frontend signe le hash SHA-256 en hex, donc on tente la vérification
+        # avec le message hexadécimal brut et sans préfixe si besoin.
+        candidates = []
+        if message.startswith("0x"):
+            candidates.append(lambda: encode_defunct(hexstr=message))
+            candidates.append(lambda: encode_defunct(text=message))
+        else:
+            candidates.append(lambda: encode_defunct(hexstr="0x" + message))
+            candidates.append(lambda: encode_defunct(text=message))
+            candidates.append(lambda: encode_defunct(text="0x" + message))
 
-        # Récupération de l'adresse depuis la signature
-        recovered_address = Account.recover_message(
-            signable_message,
-            signature=sig,
-        )
-
-        # Si ça échoue, on tente AVEC le 0x au cas où le frontend l'aurait inclus
         w3 = Web3()
-        recovered_checksum = w3.to_checksum_address(recovered_address)
         expected_checksum = w3.to_checksum_address(expected_address)
 
-        if recovered_checksum != expected_checksum:
-            # Deuxième tentative avec 0x
-            alt_msg = "0x" + clean_msg
-            alt_signable = encode_defunct(text=alt_msg)
-            alt_recovered = Account.recover_message(alt_signable, signature=sig)
-            recovered_checksum = w3.to_checksum_address(alt_recovered)
+        for builder in candidates:
+            try:
+                signable_message = builder()
+                recovered_address = Account.recover_message(
+                    signable_message,
+                    signature=sig,
+                )
+                recovered_checksum = w3.to_checksum_address(recovered_address)
+                if recovered_checksum == expected_checksum:
+                    return True, "valid"
+            except Exception:
+                continue
 
-        if recovered_checksum == expected_checksum:
-            return True, "valid"
-        else:
-            return False, "address_mismatch"
+        return False, "address_mismatch"
 
     except Exception as e:
         return False, f"error:{str(e)}"

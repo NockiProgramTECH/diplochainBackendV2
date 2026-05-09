@@ -5,12 +5,13 @@ Backend de certification de diplomes via cryptographie + blockchain
 from pathlib import Path
 from datetime import timedelta
 import os
+from decouple import config
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-dev-key-change-me-diplochainbf")
-DEBUG = True
-ALLOWED_HOSTS = ["*"]
+SECRET_KEY = config("SECRET_KEY", default="django-insecure-dev-key-change-me-diplochainbf")
+DEBUG = config("DEBUG", default=True, cast=bool)
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", default="*", cast=lambda v: [s.strip() for s in v.split(",")])
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -59,12 +60,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+# Base de données : Utilise PostgreSQL si les variables sont définies, sinon SQLite
+if config("DB_HOST", default=None):
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": config("DB_NAME"),
+            "USER": config("DB_USER"),
+            "PASSWORD": config("DB_PASSWORD"),
+            "HOST": config("DB_HOST"),
+            "PORT": config("DB_PORT", default="5432"),
+        }
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
 
 AUTH_USER_MODEL = "universities.University"
 
@@ -126,8 +140,6 @@ SIMPLE_JWT = {
     "USER_ID_CLAIM": "university_id",
 }
 
-from decouple import config
-
 BLOCKCHAIN_RPC_URL = config(
     "BLOCKCHAIN_RPC_URL", default="https://rpc-amoy.polygon.technology"
 )
@@ -140,10 +152,5 @@ BLOCKCHAIN_PRIVATE_KEY = config("BLOCKCHAIN_PRIVATE_KEY", default="")
 
 
 # CORS — Restreindre en production
-CORS_ALLOW_ALL_ORIGINS = False
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://diplochain.bf", # Exemple de domaine de prod
-]
+CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True

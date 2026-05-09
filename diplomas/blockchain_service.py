@@ -67,7 +67,40 @@ DIPLOMA_REGISTRY_ABI = [
 ]
 
 class PolygonService:
-    # ... (__init__ and is_connected stay the same)
+    def __init__(self):
+        self.w3 = Web3(Web3.HTTPProvider(settings.BLOCKCHAIN_RPC_URL))
+        self.contract = None
+        self.account = None
+        self.private_key = None
+
+        try:
+            if not self.w3.is_connected():
+                logger.error(f"Impossible de connecter au RPC blockchain: {settings.BLOCKCHAIN_RPC_URL}")
+                return
+
+            if not settings.BLOCKCHAIN_PRIVATE_KEY:
+                logger.error("BLOCKCHAIN_PRIVATE_KEY n'est pas configurée.")
+                return
+
+            from eth_account import Account
+            self.private_key = settings.BLOCKCHAIN_PRIVATE_KEY
+            self.account = Account.from_key(self.private_key)
+
+            if not settings.CONTRACT_ADDRESS:
+                logger.error("CONTRACT_ADDRESS n'est pas configurée.")
+                self.account = None
+                return
+
+            contract_address = self.w3.to_checksum_address(settings.CONTRACT_ADDRESS)
+            self.contract = self.w3.eth.contract(address=contract_address, abi=DIPLOMA_REGISTRY_ABI)
+        except Exception as e:
+            logger.exception(f"Erreur initialisation PolygonService: {e}")
+            self.contract = None
+            self.account = None
+            self.private_key = None
+
+    def is_connected(self) -> bool:
+        return bool(self.w3 and self.w3.is_connected() and self.contract and self.account)
 
     def anchor_diploma(self, file_hash_hex: str, eth_signature: str, university_address: str):
         """
@@ -111,7 +144,7 @@ class PolygonService:
             })
 
             signed_tx = self.w3.eth.account.sign_transaction(tx, private_key=self.private_key)
-            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
             
             receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=120)
             

@@ -471,7 +471,7 @@ async function signChallenge() {
 async function signHashMM() {
   let hash = g('fhash_manual');
   if (!hash) { toast('Hash SHA-256 requis', 'err'); return; }
-  if (hash.startsWith('0x')) hash = hash.substring(2);
+  if (!hash.startsWith('0x')) hash = '0x' + hash;
   if (!checkMM()) return;
   try {
     const acc  = await window.ethereum.request({ method:'eth_requestAccounts' });
