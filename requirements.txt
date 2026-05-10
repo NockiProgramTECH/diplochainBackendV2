@@ -12,3 +12,4 @@ drf-spectacular-sidecar>=2024.1.1
 gunicorn
 psycopg2
 django-cors-headers
+whitenoise
