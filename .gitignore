@@ -1,3 +1,5 @@
 .env
 audit.md
-setup_university.py
+setup_universi
+.gitignore
+.env.example
