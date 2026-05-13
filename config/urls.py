@@ -62,5 +62,5 @@ import os
 settings.TEMPLATES[0]['DIRS'] = [os.path.join(settings.BASE_DIR, 'templates')]
 
 urlpatterns += [
-    path("", TemplateView.as_view(template_name="test_frontend.html"), name="test-frontend"),
+    path("", TemplateView.as_view(template_name="index.html"), name="test-frontend"),
 ]
