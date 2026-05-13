@@ -95,3 +95,18 @@ class VerifyByHashSerializer(serializers.Serializer):
 
 class RevokeSerializer(serializers.Serializer):
     reason = serializers.CharField(max_length=500, required=True)
+
+
+
+class VerifyByScanSerializer(serializers.Serializer):
+    """Vérification d'un diplôme via scan QR code (ID uniquement)."""
+    diploma_id = serializers.UUIDField(required=True)
+    # Optionnel : pour renforcer la vérification mobile
+    student_last_name = serializers.CharField(required=False, allow_blank=True)
+
+
+
+
+
+
+

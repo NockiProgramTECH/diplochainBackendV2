@@ -9,6 +9,7 @@ MODIFICATION MetaMask :
                              la vérifie, et finalise le statut du diplôme.
 - Toutes les vues de vérification : inchangées.
 """
+from diplomas.serializers import VerifyByScanSerializer
 from django.core.files.base import ContentFile
 
 from rest_framework import generics, permissions, status
@@ -471,6 +472,81 @@ class VerifyByHashView(APIView):
             "issued_at": diploma.issued_at.isoformat(),
             "blockchain_anchored": diploma.is_blockchain_anchored,
         })
+
+
+
+
+class VerifyByScanView(APIView):
+    """
+    POST /api/diplomas/verify/scan/
+    Vérification via scan de l'ID (depuis un QR code par exemple).
+    Accessible publiquement pour les recruteurs.
+    """
+    permission_classes = [permissions.AllowAny]
+    serializer_class = VerifyByScanSerializer
+
+    def post(self, request):
+        serializer = VerifyByScanSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        diploma_id = serializer.validated_data["diploma_id"]
+        student_last_name = serializer.validated_data.get("student_last_name")
+
+        try:
+            diploma = Diploma.objects.get(id=diploma_id)
+        except Diploma.DoesNotExist:
+            return Response(
+                {"valid": False, "reason": "not_found", "message": "Diplôme introuvable."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Vérification si révoqué
+        if diploma.is_revoked:
+            return Response(
+                {
+                    "valid": False,
+                    "reason": "revoked",
+                    "message": "Ce diplôme a été révoqué par l'université.",
+                    "revocation_reason": diploma.revocation_reason,
+                }
+            )
+
+        # Vérification optionnelle du nom pour éviter les erreurs de scan
+        if student_last_name and student_last_name.lower() != diploma.student_last_name.lower():
+            return Response(
+                {
+                    "valid": False,
+                    "reason": "name_mismatch",
+                    "message": "Le nom ne correspond pas à l'ID scanné.",
+                }
+            )
+
+        # Tout est OK ✅
+        return Response(
+            {
+                "valid": True,
+                "reason": "authentic",
+                "message": "Diplôme AUTHENTIQUE.",
+                "diploma": {
+                    "id": str(diploma.id),
+                    "student": diploma.student_full_name,
+                    "degree": diploma.degree_title,
+                    "field": diploma.field_of_study,
+                    "mention": diploma.mention,
+                    "year": diploma.graduation_year,
+                    "issued_at": diploma.issued_at.isoformat(),
+                },
+                "university": {
+                    "name": diploma.university.name,
+                    "acronym": diploma.university.acronym,
+                    "is_verified": diploma.university.is_verified,
+                },
+                "blockchain": {
+                    "anchored": diploma.is_blockchain_anchored,
+                    "tx_hash": diploma.blockchain_tx_hash or None,
+                }
+            }
+        )
+
 
 
 # ══════════════════════════════════════════════════════════════

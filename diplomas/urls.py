@@ -42,5 +42,10 @@ urlpatterns = [
 
     path("diplomas/verify/hash/",
          views.VerifyByHashView.as_view(),
-         name="diploma-verify-hash"),
+         name="diploma-verify-hash"),   
+         
+     #verification par scan qr code (mobile)
+    path("diplomas/verify/scan/",
+          views.VerifyByScanView.as_view(), 
+          name="diploma-verify-scan"),
 ]
