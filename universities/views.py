@@ -7,8 +7,12 @@ MODIFICATION MetaMask :
 - Ajouté WalletChallengeView: génère le message à signer par MetaMask
 - MyKeysView                : supprimé blockchain_private_key de la réponse
 """
+import random
 import uuid
+from datetime import timedelta
 
+from django.conf import settings
+from django.core.mail import send_mail
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -195,6 +199,106 @@ class ConnectWalletView(APIView):
             }
         )
 
+class PasswordResetRequestView(APIView):
+    """POST /api/auth/password-reset/request/"""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from .serializers import PasswordResetRequestSerializer
+        from .models import University, PasswordResetCode
+
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+
+        university = University.objects.filter(email__iexact=email).first()
+        if university:
+            # Invalider les anciens codes encore actifs
+            PasswordResetCode.objects.filter(
+                university=university,
+                used=False,
+                expires_at__gt=timezone.now(),
+            ).update(used=True)
+
+            code = "".join(random.choices("0123456789", k=6))
+            expires_at = timezone.now() + timedelta(minutes=30)
+            PasswordResetCode.objects.create(
+                university=university,
+                code=code,
+                expires_at=expires_at,
+            )
+
+            subject = "Réinitialisation du mot de passe DiploChain"
+            message = (
+                f"Bonjour {university.name},\n\n"
+                f"Voici votre code de réinitialisation de mot de passe : {code}\n"
+                "Ce code est valable 30 minutes.\n\n"
+                "Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\n"
+                "Cordialement,\n"
+                "L'équipe DiploChain"
+            )
+            send_mail(
+                subject,
+                message,
+                getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@diplochain.local"),
+                [university.email],
+                fail_silently=True,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Si cet e-mail est enregistré, un code de réinitialisation a été envoyé. "
+                    "Vérifiez votre boîte de réception."
+                )
+            }
+        )
+
+
+class PasswordResetConfirmView(APIView):
+    """POST /api/auth/password-reset/confirm/"""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from .serializers import PasswordResetConfirmSerializer
+        from .models import University, PasswordResetCode
+
+        serializer = PasswordResetConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+        code = serializer.validated_data["code"]
+        password = serializer.validated_data["password"]
+
+        university = University.objects.filter(email__iexact=email).first()
+        if not university:
+            return Response(
+                {"detail": "Adresse e-mail ou code invalide."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        reset_code = PasswordResetCode.objects.filter(
+            university=university,
+            code=code,
+            used=False,
+            expires_at__gte=timezone.now(),
+        ).order_by("-created_at").first()
+
+        if not reset_code:
+            return Response(
+                {"detail": "Adresse e-mail ou code invalide."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        university.set_password(password)
+        university.save()
+        reset_code.used = True
+        reset_code.save()
+
+        return Response(
+            {"message": "Le mot de passe a été réinitialisé avec succès."}
+        )
 
 # ══════════════════════════════════════════════════════════════
 # PROFIL & CLÉS

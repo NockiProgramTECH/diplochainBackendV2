@@ -183,6 +183,35 @@ class ConnectWalletSerializer(serializers.Serializer):
             )
         return attrs
 
+class PasswordResetRequestSerializer(serializers.Serializer):
+    """Demande de code de réinitialisation de mot de passe."""
+
+    email = serializers.EmailField()
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Confirmation de la réinitialisation de mot de passe avec code."""
+
+    email = serializers.EmailField()
+    code = serializers.CharField(max_length=6)
+    password = serializers.CharField(
+        write_only=True,
+        required=True,
+        validators=[validate_password],
+        style={"input_type": "password"},
+    )
+    password_confirm = serializers.CharField(
+        write_only=True,
+        required=True,
+        style={"input_type": "password"},
+    )
+
+    def validate(self, attrs):
+        if attrs["password"] != attrs["password_confirm"]:
+            raise serializers.ValidationError(
+                {"password": "Les mots de passe ne correspondent pas."}
+            )
+        return attrs
 
 # ══════════════════════════════════════════════════════════════
 # 3. PROFIL PUBLIC — légèrement modifié
