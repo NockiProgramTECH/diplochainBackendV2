@@ -7,7 +7,12 @@ MODIFICATION MetaMask :
 - Ajouté WalletChallengeView: génère le message à signer par MetaMask
 - MyKeysView                : supprimé blockchain_private_key de la réponse
 """
+import base64
+import hashlib
+import hmac as hmac_lib
+import json
 import random
+import time
 import uuid
 from datetime import timedelta
 
@@ -256,49 +261,71 @@ class PasswordResetRequestView(APIView):
         )
 
 
+def _verify_reset_token(token: str) -> dict | None:
+    secret = getattr(settings, "OTP_SECRET", "dc-otp-fallback-secret-2026-miabe")
+    try:
+        dot = token.rfind(".")
+        if dot == -1:
+            return None
+        payload, sig = token[:dot], token[dot + 1:]
+        expected = base64.urlsafe_b64encode(
+            hmac_lib.new(secret.encode(), payload.encode(), hashlib.sha256).digest()
+        ).rstrip(b"=").decode()
+        if not hmac_lib.compare_digest(sig, expected):
+            return None
+        padding = 4 - len(payload) % 4
+        data = json.loads(base64.urlsafe_b64decode(payload + "=" * (padding % 4)))
+        if data.get("exp", 0) < time.time() * 1000:
+            return None
+        return data
+    except Exception:
+        return None
+
+
 class PasswordResetConfirmView(APIView):
     """POST /api/auth/password-reset/confirm/"""
 
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
-        from .serializers import PasswordResetConfirmSerializer
-        from .models import University, PasswordResetCode
+        reset_token = request.data.get("reset_token")
+        password = request.data.get("password")
+        password_confirm = request.data.get("password_confirm", password)
 
-        serializer = PasswordResetConfirmSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data["email"]
-        code = serializer.validated_data["code"]
-        password = serializer.validated_data["password"]
+        if not reset_token or not password:
+            return Response({"detail": "Paramètres manquants."}, status=status.HTTP_400_BAD_REQUEST)
 
-        university = University.objects.filter(email__iexact=email).first()
-        if not university:
+        if len(password) < 8:
             return Response(
-                {"detail": "Adresse e-mail ou code invalide."},
+                {"detail": "Le mot de passe doit contenir au moins 8 caractères."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        reset_code = PasswordResetCode.objects.filter(
-            university=university,
-            code=code,
-            used=False,
-            expires_at__gte=timezone.now(),
-        ).order_by("-created_at").first()
-
-        if not reset_code:
+        if password != password_confirm:
             return Response(
-                {"detail": "Adresse e-mail ou code invalide."},
+                {"detail": "Les mots de passe ne correspondent pas."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token_data = _verify_reset_token(reset_token)
+        if not token_data or token_data.get("type") != "reset":
+            return Response(
+                {"detail": "Session expirée ou invalide. Recommencez la procédure."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        email = token_data.get("email", "")
+        university = University.objects.filter(email__iexact=email).first()
+        if not university:
+            return Response(
+                {"detail": "Compte introuvable."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         university.set_password(password)
         university.save()
-        reset_code.used = True
-        reset_code.save()
 
-        return Response(
-            {"message": "Le mot de passe a été réinitialisé avec succès."}
-        )
+        return Response({"message": "Le mot de passe a été réinitialisé avec succès."})
 
 # ══════════════════════════════════════════════════════════════
 # PROFIL & CLÉS
