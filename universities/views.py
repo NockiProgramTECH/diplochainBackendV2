@@ -7,8 +7,17 @@ MODIFICATION MetaMask :
 - Ajouté WalletChallengeView: génère le message à signer par MetaMask
 - MyKeysView                : supprimé blockchain_private_key de la réponse
 """
+import base64
+import hashlib
+import hmac as hmac_lib
+import json
+import random
+import time
 import uuid
+from datetime import timedelta
 
+from django.conf import settings
+from django.core.mail import send_mail
 from django.utils import timezone
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
@@ -195,6 +204,128 @@ class ConnectWalletView(APIView):
             }
         )
 
+class PasswordResetRequestView(APIView):
+    """POST /api/auth/password-reset/request/"""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        from .serializers import PasswordResetRequestSerializer
+        from .models import University, PasswordResetCode
+
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"]
+
+        university = University.objects.filter(email__iexact=email).first()
+        if university:
+            # Invalider les anciens codes encore actifs
+            PasswordResetCode.objects.filter(
+                university=university,
+                used=False,
+                expires_at__gt=timezone.now(),
+            ).update(used=True)
+
+            code = "".join(random.choices("0123456789", k=6))
+            expires_at = timezone.now() + timedelta(minutes=30)
+            PasswordResetCode.objects.create(
+                university=university,
+                code=code,
+                expires_at=expires_at,
+            )
+
+            subject = "Réinitialisation du mot de passe DiploChain"
+            message = (
+                f"Bonjour {university.name},\n\n"
+                f"Voici votre code de réinitialisation de mot de passe : {code}\n"
+                "Ce code est valable 30 minutes.\n\n"
+                "Si vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\n"
+                "Cordialement,\n"
+                "L'équipe DiploChain"
+            )
+            send_mail(
+                subject,
+                message,
+                getattr(settings, "DEFAULT_FROM_EMAIL", "no-reply@diplochain.local"),
+                [university.email],
+                fail_silently=True,
+            )
+
+        return Response(
+            {
+                "message": (
+                    "Si cet e-mail est enregistré, un code de réinitialisation a été envoyé. "
+                    "Vérifiez votre boîte de réception."
+                )
+            }
+        )
+
+
+def _verify_reset_token(token: str) -> dict | None:
+    secret = getattr(settings, "OTP_SECRET", "dc-otp-fallback-secret-2026-miabe")
+    try:
+        dot = token.rfind(".")
+        if dot == -1:
+            return None
+        payload, sig = token[:dot], token[dot + 1:]
+        expected = base64.urlsafe_b64encode(
+            hmac_lib.new(secret.encode(), payload.encode(), hashlib.sha256).digest()
+        ).rstrip(b"=").decode()
+        if not hmac_lib.compare_digest(sig, expected):
+            return None
+        padding = 4 - len(payload) % 4
+        data = json.loads(base64.urlsafe_b64decode(payload + "=" * (padding % 4)))
+        if data.get("exp", 0) < time.time() * 1000:
+            return None
+        return data
+    except Exception:
+        return None
+
+
+class PasswordResetConfirmView(APIView):
+    """POST /api/auth/password-reset/confirm/"""
+
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        reset_token = request.data.get("reset_token")
+        password = request.data.get("password")
+        password_confirm = request.data.get("password_confirm", password)
+
+        if not reset_token or not password:
+            return Response({"detail": "Paramètres manquants."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(password) < 8:
+            return Response(
+                {"detail": "Le mot de passe doit contenir au moins 8 caractères."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if password != password_confirm:
+            return Response(
+                {"detail": "Les mots de passe ne correspondent pas."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        token_data = _verify_reset_token(reset_token)
+        if not token_data or token_data.get("type") != "reset":
+            return Response(
+                {"detail": "Session expirée ou invalide. Recommencez la procédure."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        email = token_data.get("email", "")
+        university = University.objects.filter(email__iexact=email).first()
+        if not university:
+            return Response(
+                {"detail": "Compte introuvable."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        university.set_password(password)
+        university.save()
+
+        return Response({"message": "Le mot de passe a été réinitialisé avec succès."})
 
 # ══════════════════════════════════════════════════════════════
 # PROFIL & CLÉS

@@ -18,6 +18,8 @@ urlpatterns = [
     path("auth/wallet-challenge/", views.WalletChallengeView.as_view(),   name="wallet-challenge"),
     # Étape 2 : soumettre l'adresse + la signature MetaMask
     path("auth/connect-wallet/",   views.ConnectWalletView.as_view(),     name="connect-wallet"),
+    path("auth/password-reset/request/", views.PasswordResetRequestView.as_view(), name="password-reset-request"),
+    path("auth/password-reset/confirm/", views.PasswordResetConfirmView.as_view(), name="password-reset-confirm"),
 
     # ── Public ────────────────────────────────────────────────
     path("universities/",          views.UniversityListView.as_view(),     name="university-list"),

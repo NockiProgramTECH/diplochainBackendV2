@@ -145,3 +145,24 @@ class University(AbstractBaseUser, PermissionsMixin):
         if self.blockchain_address and self.public_key_pem:
             self.crypto_fingerprint = self.compute_crypto_fingerprint()
         super().save(*args, **kwargs)
+
+
+class PasswordResetCode(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    university = models.ForeignKey(
+        University,
+        on_delete=models.CASCADE,
+        related_name="password_reset_codes",
+    )
+    code = models.CharField(max_length=6, verbose_name="Code de réinitialisation")
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    used = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = "Code de réinitialisation"
+        verbose_name_plural = "Codes de réinitialisation"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.university.email} - {self.code} ({'utilisé' if self.used else 'actif'})"
