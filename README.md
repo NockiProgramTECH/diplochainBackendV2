@@ -1,193 +1,182 @@
 # DiploChain — Backend Django
 
-Système de certification de diplômes par cryptographie et blockchain.  
+![Version](https://img.shields.io/badge/version-1.0.0--beta-blue?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+![Maintenance](https://img.shields.io/badge/Maintained%3F-yes-green.svg?style=flat-square)
+![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)
+
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![Django](https://img.shields.io/badge/django-%23092e20.svg?style=for-the-badge&logo=django&logoColor=white)
+![Django REST Framework](https://img.shields.io/badge/DJANGO-REST-ff1709?style=for-the-badge&logo=django&logoColor=white)
+![Polygon](https://img.shields.io/badge/Polygon-8247E5?style=for-the-badge&logo=polygon&logoColor=white)
+![Ethereum](https://img.shields.io/badge/Ethereum-3C3C3D?style=for-the-badge&logo=ethereum&logoColor=white)
+![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)
+![SQLite](https://img.shields.io/badge/sqlite-%2307405e.svg?style=for-the-badge&logo=sqlite&logoColor=white)
+![Swagger](https://img.shields.io/badge/-Swagger-%2385EA2D?style=for-the-badge&logo=swagger&logoColor=black)
+![Gunicorn](https://img.shields.io/badge/gunicorn-%232980b9.svg?style=for-the-badge&logo=gunicorn&logoColor=white)
+
+Système de certification et de vérification de diplômes par cryptographie (RSA) et blockchain (Polygon).  
 Développé pour le contexte burkinabè (MIABE Hackathon 2026 — Equipe-BF-10).
 
 ---
 
-## Stack technique
-
-| Couche | Technologie |
-|---|---|
-| Backend API | Django 4.2 + Django REST Framework |
-| Authentification | JWT (simplejwt) |
-| Crypto diplômes | RSA-2048 (bibliothèque `cryptography`) |
-| Crypto blockchain | secp256k1 via `eth-account` / `eth-keys` |
-| Génération PDF | ReportLab |
-| Base de données | SQLite (dev) / PostgreSQL (prod) |
-| Blockchain | Polygon Amoy Testnet (chain_id 80002) |
-
----
-
-## Architecture des clés cryptographiques
-
-Chaque université possède **deux paires de clés** liées cryptographiquement :
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  UNIVERSITÉ                                                  │
-│                                                             │
-│  1. Clé Ethereum (secp256k1)                                │
-│     private_key  ──derive──►  public_key  ──derive──► adresse│
-│                                                             │
-│  2. Clé RSA-2048 (signature diplômes)                       │
-│     private_key  ──derive──►  public_key_PEM                │
-│                                                             │
-│  3. Empreinte cryptographique (fingerprint)                 │
-│     SHA256(adresse_eth + pubkey_eth_hex + pubkey_rsa_pem)   │
-│     → Lien immuable entre identité blockchain + capacité    │
-│       de signature des diplômes                             │
-└─────────────────────────────────────────────────────────────┘
-```
+## 📌 Sommaire
+- [🌟 Présentation](#-présentation)
+- [🚀 Fonctionnalités Clés](#-fonctionnalités-clés)
+- [🛠️ Stack Technique](#️-stack-technique)
+- [⚙️ Configuration et Installation](#️-configuration-et-installation)
+- [📄 Configuration .env](#-configuration-env)
+- [🏗️ Architecture des Clés](#️-architecture-des-clés)
+- [🔄 Workflow d'émission](#-workflow-démission)
+- [📚 Documentation API](#-documentation-api)
+- [🛡️ Sécurité Blockchain](#️-sécurité-blockchain)
 
 ---
 
-## Installation
+## 🌟 Présentation
 
+DiploChain est une infrastructure logicielle permettant aux universités de délivrer des diplômes numériques infalsifiables. Chaque diplôme est signé cryptographiquement par l'université émettrice et ancré sur la blockchain Polygon pour garantir son immuabilité et sa vérifiabilité universelle sans intermédiaire.
+
+---
+
+## 🚀 Fonctionnalités Clés
+
+- **Gestion des Universités** : Inscription sécurisée, gestion des profils et génération automatique de paires de clés (RSA pour la signature de fichiers et Ethereum pour la blockchain).
+- **Émission de Diplômes** : Processus complet incluant la génération de PDF sécurisés avec QR Code, double signature (RSA + ECDSA) et hachage SHA-256.
+- **Ancrage Blockchain** : Publication de l'empreinte numérique du diplôme sur le réseau **Polygon Amoy** via un Smart Contract sécurisé.
+- **Vérification Multi-mode** :
+  - **Par fichier** : Analyse du PDF pour extraire le hash et vérifier les signatures.
+  - **Par hash** : Recherche directe dans la base de données et sur la blockchain.
+  - **Temps réel** : Interrogation directe du Smart Contract pour confirmer l'ancrage.
+- **API d'Administration** : CRUD complet pour les administrateurs système sur les universités et les diplômes.
+- **Réinitialisation de mot de passe** : Système sécurisé par code de vérification envoyé par email.
+
+---
+
+## 🛠️ Stack Technique
+
+- **Backend** : Django 4.2, Django REST Framework.
+- **Base de données** : SQLite (développement) / PostgreSQL (production).
+- **Cryptographie** : RSA-2048 (RSA-PSS), ECDSA (secp256k1 via `web3.py`).
+- **Blockchain** : Polygon Amoy Testnet (Smart Contract Solidity).
+- **PDF** : ReportLab avec intégration de QR Codes.
+- **Authentification** : JWT (JSON Web Tokens).
+
+---
+
+## ⚙️ Configuration et Installation
+
+### 1. Prérequis
+- Python 3.10+
+- Un portefeuille MetaMask avec du MATIC de test (Amoy) pour le déploiement/ancrage.
+
+### 2. Installation
 ```bash
-# 1. Cloner et créer l'environnement
-git clone <repo>
+# Cloner le projet
+git clone <votre-repo>
 cd diplochainbackend
+
+# Créer l'environnement virtuel
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 
-# 2. Installer les dépendances
+# Installer les dépendances
 pip install -r requirements.txt
 
-# 3. Variables d'environnement
+# Configurer les variables d'environnement
 cp .env.example .env
-# Éditer .env avec vos valeurs
+# Éditer .env avec vos paramètres (clés API, RPC, etc.)
+```
 
-# 4. Migrations
+### 3. Base de données
+```bash
 python manage.py migrate
-
-# 5. Créer un superadmin
 python manage.py createsuperuser
+```
 
-# 6. Lancer le serveur
+### 4. Lancement
+```bash
 python manage.py runserver
 ```
 
 ---
 
-## Routes API
+## 📄 Configuration du fichier .env
 
-### Authentification (Universités)
-
-| Méthode | Route | Description | Auth |
-|---|---|---|---|
-| POST | `/api/auth/register/` | Enregistrement + génération auto des clés | Public |
-| POST | `/api/auth/login/` | Connexion → retourne access + refresh token | Public |
-| POST | `/api/auth/token/refresh/` | Renouveler le token | Public |
-| GET | `/api/auth/profile/` | Profil de l'université connectée | 🔒 JWT |
-| GET | `/api/auth/keys/` | Voir toutes les clés (publiques + privées) | 🔒 JWT |
-
-### Universités
-
-| Méthode | Route | Description | Auth |
-|---|---|---|---|
-| GET | `/api/universities/` | Liste des universités vérifiées | Public |
-| GET | `/api/universities/<id>/` | Profil public d'une université | Public |
-
-### Diplômes
-
-| Méthode | Route | Description | Auth |
-|---|---|---|---|
-| POST | `/api/diplomas/issue/` | Émettre + signer un diplôme | 🔒 JWT |
-| GET | `/api/diplomas/` | Diplômes émis par l'université connectée | 🔒 JWT |
-| GET | `/api/diplomas/<id>/` | Détail d'un diplôme | Public |
-| POST | `/api/diplomas/<id>/revoke/` | Révoquer un diplôme | 🔒 JWT |
-| POST | `/api/diplomas/verify/file/` | Vérifier par fichier PDF soumis | Public |
-| POST | `/api/diplomas/verify/hash/` | Vérification rapide par hash SHA-256 | Public |
+| Variable | Description | Exemple |
+|---|---|---|
+| `SECRET_KEY` | Clé secrète Django | `django-insecure-...` |
+| `DEBUG` | Mode debug | `True` |
+| `BLOCKCHAIN_RPC_URL` | URL du nœud Polygon | `https://rpc-amoy.polygon.technology` |
+| `CONTRACT_ADDRESS` | Adresse du Smart Contract | `0x...` |
+| `BLOCKCHAIN_PRIVATE_KEY`| Clé privée du serveur (Gas Station) | `...` |
+| `EMAIL_BACKEND` | Gestion des emails | `django.core.mail.backends.console.EmailBackend` |
 
 ---
 
-## Flux d'émission d'un diplôme
+## 🏗️ Architecture des Clés
 
-```
-POST /api/diplomas/issue/
-         │
-         ▼
-  1. Crée le diplôme en base (status: draft)
-         │
-         ▼
-  2. Génère le PDF (ReportLab)
-         │
-         ▼
-  3. hash = SHA256(pdf_bytes)
-         │
-         ▼
-  4. rsa_signature = RSA_sign(hash, university.private_key_pem)
-         │
-         ▼
-  5. eth_signature = ETH_sign(hash, university.blockchain_private_key)
-         │
-         ▼
-  6. Sauvegarde: hash + rsa_sig + eth_sig → DB  (status: signed)
-         │
-         ▼
-  7. Retourne: diploma_id, hash, signatures, pdf_url
-```
-
-## Flux de vérification
-
-```
-POST /api/diplomas/verify/file/  { pdf_file }
-         │
-         ▼
-  1. computed_hash = SHA256(uploaded_pdf)
-         │
-         ▼
-  2. Cherche diplôme par hash en base
-         │
-         ▼
-  3. computed_hash == stored_hash ?  ──NON──► hash_mismatch ❌
-         │ OUI
-         ▼
-  4. RSA_verify(stored_hash, stored_signature, university.public_key) ?
-         │                    ──NON──► invalid_signature ❌
-         │ OUI
-         ▼
-  5. Fingerprint université cohérent ? (vérification bonus)
-         │
-         ▼
-  6. → DIPLÔME AUTHENTIQUE ✅
-```
+Chaque université dispose de :
+1. **Clé RSA-2048** : Utilisée pour signer le contenu du PDF. La signature est incluse dans les métadonnées du document.
+2. **Clé Ethereum (secp256k1)** : Utilisée pour prouver l'identité sur la blockchain.
+3. **Fingerprint** : Une empreinte unique combinant les clés publiques, agissant comme identifiant cryptographique immuable.
 
 ---
 
-## Variables d'environnement (.env)
+## 🔄 Workflow d'émission d'un diplôme
 
-```env
-SECRET_KEY=votre-cle-secrete-django
-DEBUG=True
-BLOCKCHAIN_RPC_URL=https://rpc-amoy.polygon.technology
-BLOCKCHAIN_CHAIN_ID=80002
-CONTRACT_ADDRESS=0x... (adresse du smart contract après déploiement)
-```
+Le processus est divisé en 4 étapes pour garantir une sécurité maximale :
+
+1. **Issue** (`POST /api/diplomas/issue/`) : L'université soumet les données de l'étudiant. Le serveur génère le PDF et calcule le hash SHA-256.
+2. **MetaMask Sign** : Le frontend demande à l'utilisateur de signer le hash avec son compte MetaMask (prouve l'identité de l'émetteur).
+3. **Confirm** (`POST /api/diplomas/{id}/confirm-eth-sig/`) : La signature MetaMask est envoyée au serveur pour validation et stockage.
+4. **Anchor** (`POST /api/diplomas/{id}/anchor/`) : Le serveur publie le hash sur la blockchain Polygon.
 
 ---
 
-## Structure du projet
+## 📚 Documentation API
 
-```
-diplochainbackend/
-├── config/
-│   ├── settings.py       # Configuration Django
-│   └── urls.py           # Routes principales
-├── universities/
-│   ├── models.py         # Modèle University (custom User)
-│   ├── crypto_service.py # ⭐ Toute la cryptographie
-│   ├── serializers.py    # Sérialiseurs DRF
-│   ├── views.py          # Vues API
-│   └── urls.py           # Routes /auth/ et /universities/
-├── diplomas/
-│   ├── models.py         # Modèle Diploma
-│   ├── pdf_service.py    # Génération PDF (ReportLab)
-│   ├── serializers.py    # Sérialiseurs DRF
-│   ├── views.py          # Vues API (issue, verify, revoke)
-│   └── urls.py           # Routes /diplomas/
-├── requirements.txt
-├── .env.example
-└── manage.py
-```
+### Authentification & Profils
+- `POST /api/auth/register/` : Inscription d'une université.
+- `POST /api/auth/login/` : Connexion et obtention des tokens JWT.
+- `POST /api/auth/password-reset/request/` : Demander un code de réinitialisation.
+- `POST /api/auth/password-reset/confirm/` : Valider le code et changer le mot de passe.
+- `GET /api/auth/profile/` : Voir son profil université.
+
+### Diplômes (Usage Université)
+- `POST /api/diplomas/issue/` : Créer un diplôme (draft).
+- `GET /api/diplomas/` : Liste des diplômes émis.
+- `POST /api/diplomas/{id}/revoke/` : Révoquer un diplôme.
+- `POST /api/diplomas/{id}/anchor/` : Lancer l'ancrage blockchain.
+
+### Vérification (Public)
+- `POST /api/diplomas/verify/file/` : Upload d'un PDF pour vérification complète.
+- `POST /api/diplomas/verify/hash/` : Vérification par hash SHA-256.
+
+### Administration (Staff uniquement)
+- `GET /api/admin/diplomas/` : Liste globale des diplômes.
+- `GET /api/admin/universities/` : Liste globale des universités.
+- Accès complet aux opérations CRUD.
+
+---
+
+## 🖥️ Scripts utilitaires
+
+- `reset_and_setup.py` : Réinitialise la base de données et crée un environnement de test propre.
+- `setup_university.py` : Script rapide pour configurer une université de test.
+- `check_blockchain.py` : Vérifie manuellement l'existence d'un hash sur le Smart Contract.
+- `debug_diplomas.py` : Analyse les données des diplômes en base pour le débogage.
+
+---
+
+## 🛡️ Sécurité de la Blockchain
+
+Le Smart Contract `DiplomaRegistry.sol` vérifie systématiquement que la signature soumise correspond à l'adresse de l'université déclarée. Le serveur DiploChain agit comme un "Gas Station" : il paie les frais de transaction, mais l'autorité de certification reste détenue par la clé privée de l'université (via MetaMask).
+
+---
+
+## 📝 Licence
+
+Ce projet est développé dans le cadre du **MIABE Hackathon 2026**.  
+Équipe-BF-10.
