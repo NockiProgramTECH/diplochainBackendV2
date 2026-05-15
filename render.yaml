@@ -2,5 +2,5 @@ services:
   - type: web
     name: diplochainbackendv2
     env: python
-    buildCommand: pip install -r requirements.txt && python manage.py migrate && python manage.py collectstatic --no-input && python manage.py shell -c "import os; from universities.models import University; e=os.environ.get('ADMIN_EMAIL','admin@diplochain.bf'); p=os.environ.get('ADMIN_PASSWORD','DiploChain2026!'); University.objects.filter(is_superuser=True).exists() or University.objects.create_superuser(email=e, name='Admin DiploChain', country='Burkina Faso', password=p) or print('Admin cree')"
+    buildCommand: pip install -r requirements.txt && python manage.py migrate && python manage.py collectstatic --no-input && python manage.py shell -c "import os; from django.contrib.auth.hashers import make_password; from universities.models import University; e=os.environ.get('ADMIN_EMAIL','admin@diplochain.bf'); p=os.environ.get('ADMIN_PASSWORD','1234'); University.objects.filter(is_superuser=True).exists() or University.objects.create(email=e, name='Admin DiploChain', country='Burkina Faso', password=make_password(p), is_staff=True, is_superuser=True, is_active=True, acronym='ADM') or print('Admin cree')"
     startCommand: gunicorn config.wsgi:application
