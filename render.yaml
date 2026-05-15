@@ -2,5 +2,5 @@ services:
   - type: web
     name: diplochainbackendv2
     env: python
-    buildCommand: pip install -r requirements.txt && python manage.py migrate && python manage.py collectstatic --no-input && python manage.py shell -c "import os; from django.contrib.auth.hashers import make_password; from universities.models import University; e=os.environ.get('ADMIN_EMAIL','admin@gmail.com'); p=make_password(os.environ.get('ADMIN_PASSWORD','1234')); n=University.objects.filter(email=e).update(password=p,is_staff=True,is_superuser=True,is_active=True); n or University.objects.bulk_create([__import__('universities.models',fromlist=['University']).University(email=e,name='Admin DiploChain',acronym='ADM',country='Burkina Faso',password=p,is_staff=True,is_superuser=True,is_active=True)]); print('Admin OK')"
+    buildCommand: pip install -r requirements.txt && python manage.py migrate && python manage.py collectstatic --no-input && python create_admin.py
     startCommand: gunicorn config.wsgi:application
