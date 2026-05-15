@@ -28,6 +28,7 @@ INSTALLED_APPS = [
     "drf_spectacular_sidecar",
     "universities",
     "diplomas",
+    'adminAPI',
 ]
 
 MIDDLEWARE = [
